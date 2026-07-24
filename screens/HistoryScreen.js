@@ -1,34 +1,18 @@
 // screens/HistoryScreen.js
 import React, { useState, useMemo } from "react";
-import { View, Text, SectionList, Image, TouchableOpacity } from "react-native";
+import { View, Text, SectionList, Image, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
 import useUserStore from "../store/useUserStore";
+import useHabitsStore from "../store/useHabitsStore";
 import { getStreakMessage } from "../utils/messages";
+import ImpactChart from "../components/ImpactChart";
 import theme from "../theme";
 
 const logoSource = require("../assets/Logo.png");
 
-const scientificFacts = {
-  "Boire un grand verre d'eau": "L'hydratation améliore la vigilance et les fonctions cognitives à court terme.",
-  "30 s de jumping jacks": "De brèves bouffées d'activité élèvent la fréquence cardiaque et l'énergie perçue.",
-  "10 squats lents": "Activer les grands groupes musculaires réveille le système neuromoteur.",
-  "Respiration énergisante 3-2 (x6)": "Les respirations rythmées modulent le tonus sympathique et la vigilance.",
-  "Respiration 4-2-6 (1 min)": "Allonger l'expiration stimule le nerf vague et apaise le stress.",
-  "3 respirations profondes": "Une micro-pause respiratoire réduit la charge mentale et clarifie l'attention.",
-  "Écrire 1 gratitude": "La reconnaissance augmente les affects positifs et l'optimisme.",
-  "Sourire 30 s": "Le feedback facial peut influencer l'humeur via les voies neuro-viscérales.",
-  "Relâcher les épaules (60 s)": "Relâcher les trapèzes réduit la tension somatique liée au stress.",
-  "Mini scan corporel (60 s)": "Ramener l'attention au corps diminue la rumination et ré-ancre le présent.",
-  "Regard loin 20-20-20": "Détendre l'accommodation visuelle baisse la fatigue et la tension oculaire.",
-  "Étirement de nuque (60 s)": "Micro-étirements réduisent la tension musculaire et améliorent le confort.",
-  "Respiration 4-7-8 (x2)": "Ralentir la respiration facilite la transition vers un état parasympathique.",
-  "Poser le téléphone loin": "Réduire l'exposition tardive aux écrans améliore l'endormissement.",
-  "Préparer le réveil (1 geste)": "Des repères clairs stabilisent l'horloge circadienne.",
-  "Noter une pensée à déposer": "Externaliser les pensées diminue l'activation cognitive pré-sommeil.",
-};
-
 export default function HistoryScreen() {
   const { user } = useUserStore();
+  const { habits } = useHabitsStore();
   const [viewMode, setViewMode] = useState('timeline');
 
   const groupedHistory = useMemo(() => {
@@ -59,7 +43,7 @@ export default function HistoryScreen() {
   }, [user.history]);
 
   const stats = useMemo(() => {
-    if (user.history.length === 0) return null;
+    if (user.history.length === 0 || !habits) return null;
     
     const habitCount = {};
     const moodCount = { 'Bien': 0, 'Neutre': 0, 'Pas top': 0 };
@@ -68,7 +52,7 @@ export default function HistoryScreen() {
     user.history.forEach(item => {
       const habitTitle = typeof item.habit === "object" 
         ? item.habit.title 
-        : user.habits.find((h) => h.id === item.habit)?.title || "Inconnu";
+        : habits.find((h) => h.id === item.habit)?.title || "Inconnu";
       
       habitCount[habitTitle] = (habitCount[habitTitle] || 0) + 1;
       
@@ -92,12 +76,53 @@ export default function HistoryScreen() {
       mostFrequentMood: mostFrequentMood ? `${mostFrequentMood[0]} (${mostFrequentMood[1]} fois)` : 'Aucune',
       averagePerDay: (user.history.length / Object.keys(dailyCompletion).length).toFixed(1)
     };
-  }, [user.history]);
+  }, [user.history, habits]);
+
+  const correlationInsight = useMemo(() => {
+    if (user.history.length < 7 || !habits) return null; // On attend un peu de données
+
+    const habitMoods = {}; // { habitTitle: { 'Bien': 1, 'Pas top': 0, total: 1 }, ... }
+
+    user.history.forEach(item => {
+      const habitObject = typeof item.habit === "object"
+        ? item.habit
+        : habits.find((h) => h.id === item.habit);
+      
+      if (!habitObject || !item.mood) return;
+
+      const habitTitle = habitObject.title;
+      if (!habitMoods[habitTitle]) {
+        habitMoods[habitTitle] = { 'Bien': 0, 'Neutre': 0, 'Pas top': 0, 'total': 0 };
+      }
+      habitMoods[habitTitle][item.mood]++;
+      habitMoods[habitTitle].total++;
+    });
+
+    let bestHabit = null;
+    let maxPositiveImpact = 0;
+
+    for (const title in habitMoods) {
+      if (habitMoods[title].total >= 3) { // On ne considère que les habitudes faites au moins 3 fois
+        const positiveRatio = (habitMoods[title]['Bien'] / habitMoods[title].total);
+        if (positiveRatio > maxPositiveImpact && positiveRatio > 0.6) { // Doit avoir un impact > 60%
+          maxPositiveImpact = positiveRatio;
+          bestHabit = title;
+        }
+      }
+    }
+    return bestHabit ? { habit: bestHabit, impact: Math.round(maxPositiveImpact * 100) } : null;
+  }, [user.history, habits]);
 
   if (viewMode === 'stats') {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.colors.bg, padding: theme.spacing(2) }}>
-        <View style={{ alignItems: "center", marginBottom: theme.spacing(3) }}>
+      <ScrollView 
+        style={{ flex: 1, backgroundColor: theme.colors.bg }}
+        contentContainerStyle={{
+          padding: theme.spacing(2),
+          paddingBottom: theme.spacing(6) // Espace pour la barre de navigation
+        }}
+      >
+        <View style={{ alignItems: "center", marginBottom: theme.spacing(3), paddingTop: theme.spacing(2) }}>
           <Image source={logoSource} style={{ width: 80, height: 80 }} resizeMode="contain" />
           <Text style={{ marginTop: theme.spacing(1), color: theme.colors.sub }}>Rockwhale</Text>
         </View>
@@ -112,7 +137,8 @@ export default function HistoryScreen() {
         </View>
 
         {stats ? (
-          <View>
+
+          <>
             <View style={{
               backgroundColor: theme.colors.card,
               padding: theme.spacing(3),
@@ -173,16 +199,32 @@ export default function HistoryScreen() {
               </Text>
               <Text style={{ color: theme.colors.sub }}>{stats.mostFrequentMood}</Text>
             </View>
-          </View>
+
+
+          {/* NOUVELLE CARTE D'INSIGHT ou TEASER */}
+          {correlationInsight ? (
+            <ImpactChart habit={correlationInsight.habit} impact={correlationInsight.impact} />
+          ) : (
+            <View style={{ backgroundColor: theme.colors.card, padding: theme.spacing(3), borderRadius: theme.radius.xl, marginTop: theme.spacing(3), shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 3, borderStyle: 'dashed', borderWidth: 1, borderColor: theme.colors.sub }}>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: theme.colors.ink, marginBottom: theme.spacing(2) }}>
+                💡 Bientôt disponible : Votre Levier de Bien-être
+              </Text>
+              <Text style={{ color: theme.colors.sub, lineHeight: 22 }}>
+                Continuez à enregistrer vos habitudes et votre humeur. Après quelques jours, nous vous révélerons quelle habitude a le plus d'impact positif sur vous.
+              </Text>
+            </View>
+          )}
+
+          </>
         ) : (
           <View style={{ alignItems: 'center', justifyContent: 'center', marginTop: theme.spacing(6) }}>
             <Ionicons name="stats-chart" size={64} color={theme.colors.sub} />
             <Text style={{ color: theme.colors.sub, textAlign: "center", marginTop: theme.spacing(2), fontSize: 16 }}>
-              Aucune donnée à analyser pour le moment
+              Continuez à pratiquer vos habitudes pour débloquer vos statistiques.
             </Text>
           </View>
         )}
-      </View>
+      </ScrollView>
     );
   }
 
@@ -207,11 +249,12 @@ export default function HistoryScreen() {
           sections={groupedHistory}
           keyExtractor={(item, index) => item + index}
           renderItem={({ item }) => {
-            const habitTitle = typeof item.habit === "object"
-              ? item.habit.title
-              : user.habits.find((h) => h.id === item.habit)?.title || "Habitude inconnue";
-
-            const fact = scientificFacts[habitTitle] || "Bienfait : contribue à ton bien-être !";
+            const habitObject = typeof item.habit === "object"
+              ? item.habit
+              : habits.find((h) => h.id === item.habit);
+              
+            const habitTitle = habitObject?.title || "Habitude inconnue";
+            const fact = habitObject?.scientificFact || "Bienfait : contribue à ton bien-être !";
 
             return (
               <View

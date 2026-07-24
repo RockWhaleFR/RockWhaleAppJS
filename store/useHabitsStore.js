@@ -1,24 +1,22 @@
 // store/useHabitsStore.js
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import habitsSeed from '../data/habits';
+import habitsSeed from '../data/habits'; // ✅ Seule référence nécessaire
 
 const HABITS_KEY = 'habits';
 
 const useHabitsStore = create((set, get) => ({
   habits: habitsSeed,
 
-  // Remplace complètement la liste (et persiste)
   setHabits: async (newHabits) => {
     set({ habits: newHabits });
     try {
       await AsyncStorage.setItem(HABITS_KEY, JSON.stringify(newHabits));
     } catch (e) {
-      console.warn('Failed to save selected habits', e);
+      console.warn('Failed to save habits', e);
     }
   },
 
-  // Charge depuis le storage — si vide/corrompu, retombe sur le seed
   loadHabits: async () => {
     try {
       const savedStr = await AsyncStorage.getItem(HABITS_KEY);
@@ -38,7 +36,6 @@ const useHabitsStore = create((set, get) => ({
     }
   },
 
-  // Toggle done + persiste
   toggleHabitDone: async (id) => {
     const updated = get().habits.map((h) =>
       h.id === id ? { ...h, done: !h.done } : h
@@ -51,7 +48,6 @@ const useHabitsStore = create((set, get) => ({
     }
   },
 
-  // Option pratique si tu veux “réinitialiser” via un bouton dans Settings
   resetHabitsToSeed: async () => {
     set({ habits: habitsSeed });
     try {

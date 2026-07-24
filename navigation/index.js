@@ -1,101 +1,136 @@
-// navigation/index.js
+// navigation/index.js - Navigation CORRIGÉE
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { enableScreens } from 'react-native-screens';
 import { Ionicons } from '@expo/vector-icons';
-import HomeScreen from '../screens/HomeScreen';
-import HabitDetailScreen from '../screens/HabitDetailScreen';
-import HistoryScreen from '../screens/HistoryScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import theme from '../theme';
+import { Platform } from 'react-native';
 
-enableScreens();
+// Écrans
+import SmartHomeScreen from '../screens/SmartHomeScreen';
+import TechniquesLibraryScreen from '../screens/TechniquesLibraryScreen';
+import HistoryScreen from '../screens/HistoryScreen';
+import HistoryTimelineScreen from '../screens/HistoryTimelineScreen';
+import ProfileScreen from '../screens/ProfileScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import HabitDetailScreen from '../screens/HabitDetailScreen';
+import ActivityScreen from '../screens/ActivityScreen';
+import PremiumPaywallScreen from '../screens/PremiumPaywallScreen';
+import GuidedTechniqueScreen from '../screens/GuidedTechniqueScreen';
+import EnhancedDiagnosticScreen from '../screens/EnhancedDiagnosticScreen';
+
+// 🔥 Écrans détails
+import BiometricDetailsScreen from '../screens/BiometricDetailsScreen';
+import MentalDetailsScreen from '../screens/MentalDetailsScreen';
+
+import theme from '../theme/enhancedTheme';
 
 const Tab = createBottomTabNavigator();
-const Stack = createNativeStackNavigator();
+const HomeStack = createNativeStackNavigator();
+const HistoryStack = createNativeStackNavigator();
+const ProfileStack = createNativeStackNavigator();
 
-function HomeStack() {
+// Stack Home
+function HomeStackScreen() {
   return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="HomeMain"
-        component={HomeScreen}
-        options={{ title: 'Accueil' }}
+    <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+      <HomeStack.Screen name="HomeMain" component={SmartHomeScreen} />
+      <HomeStack.Screen name="BiometricDetails" component={BiometricDetailsScreen} />
+      <HomeStack.Screen name="MentalDetails" component={MentalDetailsScreen} />
+      <HomeStack.Screen name="HabitDetail" component={HabitDetailScreen} />
+      <HomeStack.Screen name="Activity" component={ActivityScreen} />
+      <HomeStack.Screen name="TechniquesLibrary" component={TechniquesLibraryScreen} />
+      <HomeStack.Screen name="PremiumPaywall" component={PremiumPaywallScreen} />
+      <HomeStack.Screen name="GuidedTechnique" component={GuidedTechniqueScreen} />
+      <HomeStack.Screen name="Settings" component={SettingsScreen} />
+      {/* 🔥 Ajout RetakeDiagnostic dans HomeStack */}
+      <HomeStack.Screen 
+        name="RetakeDiagnostic" 
+        component={EnhancedDiagnosticScreen}
+        initialParams={{ isRetake: true }}
       />
-      <Stack.Screen
-        name="HabitDetail"
-        component={HabitDetailScreen}
-        options={{ title: 'Détail habitude' }}
-      />
-    </Stack.Navigator>
+    </HomeStack.Navigator>
   );
 }
 
-export default function Navigation({ route }) {
-  const currentRoute = route?.state?.routes?.[route.state.index] ?? { name: 'HomeMain' };
-  const routeName = currentRoute.name;
-  const hideTabs = routeName === 'HabitDetail';
+// Stack History
+function HistoryStackScreen() {
+  return (
+    <HistoryStack.Navigator screenOptions={{ headerShown: false }}>
+      <HistoryStack.Screen name="HistoryMain" component={HistoryScreen} />
+      <HistoryStack.Screen name="HistoryTimeline" component={HistoryTimelineScreen} />
+    </HistoryStack.Navigator>
+  );
+}
 
+// Stack Profile
+function ProfileStackScreen() {
+  return (
+    <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
+      <ProfileStack.Screen name="ProfileMain" component={ProfileScreen} />
+      <ProfileStack.Screen name="Settings" component={SettingsScreen} />
+      <ProfileStack.Screen name="HistoryTimeline" component={HistoryTimelineScreen} />
+      <ProfileStack.Screen name="MentalDetails" component={MentalDetailsScreen} />
+      {/* 🔥 Ajout RetakeDiagnostic dans ProfileStack */}
+      <ProfileStack.Screen 
+        name="RetakeDiagnostic" 
+        component={EnhancedDiagnosticScreen}
+        initialParams={{ isRetake: true }}
+      />
+    </ProfileStack.Navigator>
+  );
+}
+
+export default function Navigation() {
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarShowLabel: false,
-        tabBarStyle: hideTabs ? { display: 'none' } : {
-          backgroundColor: theme.colors.card,
-          borderTopWidth: 0,
-          elevation: 8,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 8,
-          height: 80,
-          paddingBottom: 10,
-          paddingTop: 10,
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName;
+
+          if (route.name === 'Home') {
+            iconName = focused ? 'home' : 'home-outline';
+          } else if (route.name === 'History') {
+            iconName = focused ? 'time' : 'time-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.sub,
-      }}
+        tabBarStyle: {
+          backgroundColor: theme.colors.card,
+          borderTopColor: theme.colors.chipBorder,
+          borderTopWidth: 1,
+          paddingTop: 8,
+          paddingBottom: Platform.OS === 'ios' ? 30 : 25,
+          height: Platform.OS === 'ios' ? 95 : 85,
+          position: 'absolute',
+          bottom: 0,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+          marginBottom: Platform.OS === 'ios' ? 0 : 4,
+        },
+      })}
     >
-      <Tab.Screen
-        name="Home"
-        component={HomeStack}
-        options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons 
-              name={focused ? "home" : "home-outline"} 
-              size={size} 
-              color={color} 
-            />
-          ),
-        }}
+      <Tab.Screen 
+        name="Home" 
+        component={HomeStackScreen}
+        options={{ tabBarLabel: 'Accueil' }}
       />
-      <Tab.Screen
-        name="History"
-        component={HistoryScreen}
-        options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons 
-              name={focused ? "bar-chart" : "bar-chart-outline"} 
-              size={size} 
-              color={color} 
-            />
-          ),
-        }}
+      <Tab.Screen 
+        name="History" 
+        component={HistoryStackScreen}
+        options={{ tabBarLabel: 'Historique' }}
       />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          tabBarIcon: ({ color, size, focused }) => (
-            <Ionicons 
-              name={focused ? "settings" : "settings-outline"} 
-              size={size} 
-              color={color} 
-            />
-          ),
-        }}
+      <Tab.Screen 
+        name="Profile" 
+        component={ProfileStackScreen}
+        options={{ tabBarLabel: 'Profil' }}
       />
     </Tab.Navigator>
   );

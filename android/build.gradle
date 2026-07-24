@@ -1,0 +1,41 @@
+// android/build.gradle
+// Fichier de configuration Gradle pour forcer les versions de dépendances
+buildscript {
+    ext {
+        // Définir les versions nécessaires pour les librairies natives React Native
+        // Ces versions sont compatibles avec react-native-google-fit
+        buildToolsVersion = "34.0.0"
+        minSdkVersion = 21 // Minimum pour Android
+        compileSdkVersion = 34 // Dernière version supportée par Expo SDK 54
+        targetSdkVersion = 34
+        kotlinVersion = "1.8.0" // Une version de Kotlin stable pour ces SDK
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        // Utiliser une version du plugin Android Gradle connue pour fonctionner
+        classpath("com.android.tools.build:gradle:8.0.0")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${rootProject.ext.kotlinVersion}")
+    }
+}
+
+allprojects {
+    repositories {
+        maven { url "https://www.jitpack.io" }
+        google()
+        mavenCentral()
+        exclusiveContent {
+            // Empêcher les conflits de dépendances
+            forRepository {
+                maven {
+                    url "https://repo.commonsware.com/maven"
+                }
+            }
+            filter {
+                includeGroup "com.commonsware.cwac"
+            }
+        }
+    }
+}

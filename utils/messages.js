@@ -1,41 +1,32 @@
 // utils/messages.js
-export const praiseSegments = {
-  start: ["Super", "Bravo", "Top", "Bien joué", "Excellent", "Génial", "Formidable"],
-  middle: ["tu viens de", "tu as réussi à", "félicitations pour avoir"],
-  end: [
-    "faire un pas qui compte.",
-    "envoyer un signal positif à ton cerveau.",
-    "renforcer ton nouveau réflexe.",
-    "prendre soin de toi aujourd'hui.",
-    "avancer vers ta meilleure version.",
-    "consolider une habitude bénéfique."
-  ],
-  challenges: [
-    "Chaque petit pas compte, même les jours difficiles.",
-    "La régularité est la clé, continue comme ça !",
-    "Rome ne s'est pas construite en un jour, mais tu es sur la bonne voie.",
-    "Les meilleures choses prennent du temps, mais tu progresses !"
-  ]
-};
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-export function buildGenericPraise(habitTitle) {
-  return `${pick(praiseSegments.start)} ! ${pick(praiseSegments.middle)} ${habitTitle.toLowerCase()} et ${pick(praiseSegments.end)}`;
-}
+/**
+ * Génère un message de félicitations personnalisé et naturel.
+ * @param {string} [userName] - Le prénom de l'utilisateur.
+ * @returns {string} - Un message de félicitations.
+ */
+export function buildPraise(userName) {
+  const namePart = userName ? ` ${userName}` : '';
+  const praises = [
+    `Bravo${namePart} ! C'est un pas de plus vers votre objectif.`,
+    `Excellent travail${namePart} ! Chaque habitude compte.`,
+    `Super${namePart} ! Vous avez pris un moment pour vous, c'est l'essentiel.`,
+    `Bien joué ! La régularité est la clé du succès.`,
+    `Génial${namePart} ! Votre cerveau vous remercie pour ce signal positif.`,
+    `Formidable${namePart} ! Une habitude de plus pour une journée réussie.`
+  ];
+  const challenges = [
+    `L'important est de continuer${namePart ? `, ${userName},` : ''} même les jours difficiles. Bravo.`,
+    `Chaque petit pas compte. Vous êtes sur la bonne voie.`,
+    `La régularité est plus importante que la perfection. Continuez comme ça !`,
+    `C'est dans la constance qu'on trouve la force. Bien joué.`
+  ];
 
-export function buildPraise(habitTitle, mood) {
-  const base = buildGenericPraise(habitTitle);
-  
-  if (mood === "Pas top") {
-    return `${base} ${pick(praiseSegments.challenges)}`;
-  }
-  
-  if (mood === "Neutre") {
-    return `${base} La régularité est plus importante que l'intensité.`;
-  }
-  
-  return base;
+  // On mélange les deux types de messages pour plus de variété
+  const allMessages = [...praises, ...challenges];
+  return pick(allMessages);
 }
 
 export function getStreakMessage(streak) {

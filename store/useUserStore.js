@@ -1,4 +1,4 @@
-// store/useUserStore.js
+// store/useUserStore.js - AVEC PROFILS STRESS/PERMA
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { todayKey, isYesterday } from '../utils/date';
@@ -8,10 +8,15 @@ const USER_KEY = 'user';
 
 const defaultUser = {
   // Profil de base
+  name: null,
   objective: null,
   timeAvailable: null,
   intensity: null,
   chronotype: null,
+  
+  // 🔥 PROFILS STRESS & BIEN-ÊTRE (ajoutés)
+  stressProfile: null, // { score, level, pssBreakdown: { control, confidence, ... }, completedAt }
+  wellbeingProfile: null, // { positiveEmotions, engagement, relationships, meaning, accomplishment, overallScore }
   
   // Gamification
   streak: 0,
@@ -21,23 +26,26 @@ const defaultUser = {
   
   // Onboarding & Monetisation
   hasOnboarded: false,
+  isPremium: false, // 🔥 Ajouté
   subscriptionPlan: 'free',
   usedFreeTrial: false,
   subscriptionExpiry: null,
   purchaseHistory: [],
   
-  // NOUVELLES PROPRIÉTÉS pour l'assistant adaptatif
+  // Préférences
   preferences: {
     reminderTime: { hour: 9, minute: 0 },
     workingHours: { start: 9, end: 18 },
     breakPreferences: ['meditation', 'walk', 'stretch'],
-    stressLevel: 'medium', // low, medium, high
-    environment: 'office', // office, home, mixed
+    stressLevel: 'medium',
+    environment: 'office',
     notifications: {
-      enabled: true,
       contextual: true,
-      frequency: 'smart' // low, medium, smart, high
-    }
+      frequency: 'smart'
+    },
+    notificationsEnabled: true,
+    hapticsEnabled: true,
+    soundEnabled: true,
   },
   
   // État des notifications
@@ -58,7 +66,44 @@ const useUserStore = create((set, get) => ({
   isLoading: false,
   error: null,
 
-  // --- NOUVELLES MÉTHODES pour l'assistant adaptatif ---
+  // 🔥 NOUVEAU : Sauvegarder profil stress (PSS-4)
+  saveStressProfile: async (profile) => {
+    const updatedUser = {
+      ...get().user,
+      stressProfile: {
+        ...profile,
+        completedAt: new Date().toISOString()
+      }
+    };
+    set({ user: updatedUser });
+    await persistUser(updatedUser);
+    console.log('✅ Profil stress sauvegardé');
+  },
+
+  // 🔥 NOUVEAU : Sauvegarder profil bien-être (PERMA)
+  saveWellbeingProfile: async (profile) => {
+    const updatedUser = {
+      ...get().user,
+      wellbeingProfile: {
+        ...profile,
+        completedAt: new Date().toISOString()
+      }
+    };
+    set({ user: updatedUser });
+    await persistUser(updatedUser);
+    console.log('✅ Profil bien-être sauvegardé');
+  },
+
+  // Met à jour un paramètre spécifique
+  updateSetting: async (key, value) => {
+    const { user } = get();
+    const updatedUser = {
+      ...user,
+      preferences: { ...user.preferences, [key]: value },
+    };
+    set({ user: updatedUser });
+    await persistUser(updatedUser);
+  },
   
   // Met à jour les préférences utilisateur
   updatePreferences: async (preferences) => {
@@ -104,8 +149,6 @@ const useUserStore = create((set, get) => ({
     await persistUser(updatedUser);
   },
 
-  // --- MÉTHODES EXISTANTES OPTIMISÉES ---
-  
   // Met à jour l'utilisateur (version optimisée)
   updateUser: async (updates) => {
     const updatedUser = { ...get().user, ...updates };
@@ -126,9 +169,12 @@ const useUserStore = create((set, get) => ({
       const saved = await AsyncStorage.getItem(USER_KEY);
       if (saved) {
         const userData = JSON.parse(saved);
-        // Migration des anciennes données vers le nouveau format
         const migratedUser = migrateUserData(userData);
         set({ user: migratedUser, isLoading: false });
+        console.log('✅ User chargé:', {
+          hasStressProfile: !!migratedUser.stressProfile,
+          hasWellbeingProfile: !!migratedUser.wellbeingProfile
+        });
       } else {
         set({ user: defaultUser, isLoading: false });
       }
@@ -154,7 +200,6 @@ const useUserStore = create((set, get) => ({
       newStreak = 1;
     }
     
-    // Calcul du taux de completion pour l'IA
     const totalDays = user.history.length;
     const completionRate = totalDays > 0 ? newStreak / (totalDays + 1) : 1;
     
@@ -176,7 +221,6 @@ const useUserStore = create((set, get) => ({
     try {
       await persistUser(updated);
       
-      // Notification badge seulement si nouveau
       if ((!oldBadge && newBadge) || (oldBadge && newBadge && oldBadge.name !== newBadge.name)) {
         const { scheduleBadgeNotification } = require('../services/notifications');
         scheduleBadgeNotification(newBadge.name, newBadge.icon);
@@ -189,7 +233,6 @@ const useUserStore = create((set, get) => ({
     }
   },
 
-  // Autres méthodes existantes (optimisées)
   resetStreak: async () => {
     const updated = { ...get().user, streak: 0, lastCompletionDate: null };
     set({ user: updated });
@@ -198,7 +241,13 @@ const useUserStore = create((set, get) => ({
 
   addHistory: async (entry) => {
     const updatedHistory = [...get().user.history, entry];
-    const updatedUser = { ...get().user, history: updatedHistory };
+    const updatedUser = { 
+      ...get().user, 
+      history: updatedHistory.map(e => ({
+        ...e, 
+        habit: typeof e.habit === 'object' ? e.habit.id : e.habit
+      })) 
+    };
     set({ user: updatedUser });
     await persistUser(updatedUser);
   },
@@ -214,7 +263,7 @@ const useUserStore = create((set, get) => ({
       hasOnboarded: false,
       streak: 0,
       history: [],
-      lastCompletionDate: null
+      lastCompletionDate: null,
     };
     set({ user: resetUser });
     await persistUser(resetUser);
@@ -224,7 +273,8 @@ const useUserStore = create((set, get) => ({
     const updated = { 
       ...get().user, 
       subscriptionPlan: planId,
-      subscriptionExpiry: expiryDate
+      subscriptionExpiry: expiryDate,
+      isPremium: planId !== 'free'
     };
     set({ user: updated });
     await persistUser(updated);
@@ -236,7 +286,6 @@ const useUserStore = create((set, get) => ({
     await persistUser(updated);
   },
 
-  // Getters pour l'IA contextuelle
   getContextualData: () => {
     const { user } = get();
     return {
@@ -249,8 +298,6 @@ const useUserStore = create((set, get) => ({
     };
   }
 }));
-
-// --- FONCTIONS UTILITAIRES ---
 
 // Fonction centralisée de persistence avec retry
 const persistUser = async (userData, retries = 3) => {
@@ -268,12 +315,13 @@ const persistUser = async (userData, retries = 3) => {
 
 // Migration des anciennes données vers le nouveau format
 const migrateUserData = (userData) => {
-  // Si c'est déjà au bon format, on retourne tel quel
   if (userData.preferences && userData.behaviorData) {
-    return userData;
+    return {
+      ...defaultUser,
+      ...userData
+    };
   }
   
-  // Migration depuis l'ancien format
   return {
     ...defaultUser,
     ...userData,

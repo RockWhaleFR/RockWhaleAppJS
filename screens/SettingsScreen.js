@@ -1,21 +1,76 @@
-// screens/SettingsScreen.js
-// screens/SettingsScreen.js
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Switch } from 'react-native';
+// screens/SettingsScreen.js - VERSION CORRIGÉE
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Switch, Alert } from 'react-native';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import useUserStore from '../store/useUserStore';
 import useHabitsStore from '../store/useHabitsStore';
+import biometricService from '../services/biometricService';
 import theme from '../theme';
 
 export default function SettingsScreen() {
   const navigation = useNavigation();
-  const { user, resetOnboarding } = useUserStore();
+  const { user, resetOnboarding, updateSetting } = useUserStore();
   const { resetHabitsToSeed } = useHabitsStore();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [hapticsEnabled, setHapticsEnabled] = React.useState(true);
-  const [soundEnabled, setSoundEnabled] = React.useState(true);
+  
+  const [biometricStatus, setBiometricStatus] = useState('Vérification...');
+  const [isConnecting, setIsConnecting] = useState(false);
 
+  useEffect(() => {
+    checkBiometricStatus();
+  }, []);
+
+  const checkBiometricStatus = async () => {
+    const status = await biometricService.checkStatus();
+    setBiometricStatus(status.status);
+  };
+
+  const handleConnectBiometric = async () => {
+    setIsConnecting(true);
+    
+    try {
+      const result = await biometricService.initialize();
+
+      if (result.success && result.platform === 'GoogleFit') {
+        Alert.alert(
+          '✅ Google Fit Connecté',
+          'Les données de santé sont maintenant disponibles dans l\'app.',
+          [{ text: 'Super !', onPress: () => checkBiometricStatus() }]
+        );
+      } else {
+        Alert.alert(
+          '⚠️ Connexion échouée',
+          'Veuillez accepter les permissions Google Fit.',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Réessayer', onPress: handleConnectBiometric }
+          ]
+        );
+      }
+    } catch (error) {
+      Alert.alert('Erreur', error.message);
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleDisconnectBiometric = async () => {
+    Alert.alert(
+      'Déconnecter Google Fit ?',
+      'Les prédictions IA seront moins précises.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Déconnecter',
+          style: 'destructive',
+          onPress: async () => {
+            await biometricService.disconnect();
+            checkBiometricStatus();
+          }
+        }
+      ]
+    );
+  };
   const handleResetOnboarding = async () => {
     // 1. Réinitialiser les données
     await resetOnboarding();
@@ -25,7 +80,7 @@ export default function SettingsScreen() {
     navigation.dispatch(
       CommonActions.reset({
         index: 0,
-        routes: [{ name: 'Onboarding' }],
+        routes: [{ name: 'Welcome' }],
       })
     );
   };
@@ -35,22 +90,23 @@ export default function SettingsScreen() {
     title: 'Notifications',
     subtitle: 'Activer/désactiver les rappels',
     icon: 'notifications-outline',
-    value: notificationsEnabled,
-    onValueChange: setNotificationsEnabled,
+    value: user.preferences.notificationsEnabled,
+    onValueChange: (value) => updateSetting('notificationsEnabled', value),
   },
+  
   {
     title: 'Retour haptique',
     subtitle: 'Vibrations lors des interactions',
     icon: 'phone-portrait-outline', // Icône corrigée
-    value: hapticsEnabled,
-    onValueChange: setHapticsEnabled,
+    value: user.preferences.hapticsEnabled,
+    onValueChange: (value) => updateSetting('hapticsEnabled', value),
   },
   {
     title: 'Son',
     subtitle: 'Activer/désactiver les sons',
     icon: 'volume-medium-outline',
-    value: soundEnabled,
-    onValueChange: setSoundEnabled,
+    value: user.preferences.soundEnabled,
+    onValueChange: (value) => updateSetting('soundEnabled', value),
   },
 ];
 
@@ -77,8 +133,154 @@ export default function SettingsScreen() {
           Paramètres
         </Text>
       </View>
+{/* 🔥 SECTION BIOMÉTRIQUE */}
+      <Text style={{ 
+        fontSize: 18, 
+        fontWeight: '600', 
+        color: theme.colors.ink, 
+        marginBottom: theme.spacing(2),
+        marginLeft: theme.spacing(1)
+      }}>
+        🔗 Intégrations
+      </Text>
+      
+      <View style={{ 
+        backgroundColor: theme.colors.card, 
+        borderRadius: theme.radius.xl,
+        marginBottom: theme.spacing(4),
+        ...theme.psychology.shadows.soft,
+      }}>
+        <View style={{ padding: theme.spacing(3) }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing(2) }}>
+            <Ionicons name="heart-circle" size={28} color={theme.colors.primary} style={{ marginRight: theme.spacing(2) }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ 
+                fontWeight: '600', 
+                color: theme.colors.ink,
+                fontSize: 16,
+                marginBottom: 4
+              }}>
+                Google Fit / Health Connect
+              </Text>
+              <Text style={{ 
+                color: biometricStatus === 'Connecté' ? theme.colors.success : theme.colors.sub,
+                fontSize: 14,
+                fontWeight: '600'
+              }}>
+                {biometricStatus}
+              </Text>
+            </View>
+            {biometricStatus === 'Connecté' && (
+              <View style={{
+                backgroundColor: theme.colors.success + '20',
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 8,
+              }}>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: theme.colors.success }}>
+                  Actif
+                </Text>
+              </View>
+            )}
+          </View>
 
+          {/* Bénéfices */}
+          <View style={{
+            backgroundColor: theme.colors.chipBg,
+            padding: theme.spacing(2),
+            borderRadius: 12,
+            marginBottom: theme.spacing(2),
+          }}>
+            <Text style={{ fontSize: 13, color: theme.colors.sub, marginBottom: 6 }}>
+              ✨ <Text style={{ fontWeight: '600' }}>Avantages :</Text>
+            </Text>
+            <Text style={{ fontSize: 12, color: theme.colors.sub, lineHeight: 18 }}>
+              • Analyse sommeil automatique{'\n'}
+              • Fréquence cardiaque au repos{'\n'}
+              • Prédictions IA 2× plus précises{'\n'}
+              • Score de récupération personnalisé
+            </Text>
+          </View>
+
+          {biometricStatus !== 'Connecté' ? (
+            <TouchableOpacity
+              style={{
+                backgroundColor: theme.colors.primary,
+                paddingVertical: theme.spacing(2),
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                ...theme.psychology.shadows.warm,
+              }}
+              onPress={handleConnectBiometric}
+              disabled={isConnecting}
+            >
+              <Ionicons name="heart-circle" size={20} color="#FFFFFF" />
+              <Text style={{ color: '#FFFFFF', fontWeight: '600', marginLeft: 8 }}>
+                {isConnecting ? 'Connexion...' : 'Connecter Google Fit'}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={{
+                backgroundColor: theme.colors.error + '20',
+                paddingVertical: theme.spacing(1.5),
+                borderRadius: 12,
+                alignItems: 'center',
+                borderWidth: 1,
+                borderColor: theme.colors.error + '50',
+              }}
+              onPress={handleDisconnectBiometric}
+            >
+              <Text style={{ color: theme.colors.error, fontWeight: '600', fontSize: 14 }}>
+                Déconnecter
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
       {/* Section Préférences */}
+      <Text style={{ 
+        fontSize: 18, 
+        fontWeight: '600', 
+        color: theme.colors.ink, 
+        marginBottom: theme.spacing(2),
+        marginLeft: theme.spacing(1)
+      }}>
+        Permissions
+      </Text>
+      <View style={{ 
+        backgroundColor: theme.colors.card, 
+        borderRadius: theme.radius.xl,
+        marginBottom: theme.spacing(4),
+        ...theme.psychology.shadows.soft,
+      }}>
+        <TouchableOpacity 
+          style={styles.permissionRow}
+          onPress={() => Alert.alert('Gérer la localisation', 'Pour modifier cette permission, allez dans les Réglages de votre téléphone > Rockwhale > Localisation.')}
+        >
+          <Ionicons name="location-outline" size={24} color={theme.colors.primary} style={styles.permissionIcon} />
+          <View style={styles.permissionTextContainer}>
+            <Text style={styles.permissionTitle}>Localisation</Text>
+            <Text style={styles.permissionSubtitle}>Utilisée pour le contexte météo</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.sub} />
+        </TouchableOpacity>
+        <View style={styles.separator} />
+        <TouchableOpacity 
+          style={styles.permissionRow}
+          onPress={() => Alert.alert('Gérer le calendrier', 'Pour modifier cette permission, allez dans les Réglages de votre téléphone > Rockwhale > Calendrier.')}
+        >
+          <Ionicons name="calendar-outline" size={24} color={theme.colors.primary} style={styles.permissionIcon} />
+          <View style={styles.permissionTextContainer}>
+            <Text style={styles.permissionTitle}>Calendrier</Text>
+            <Text style={styles.permissionSubtitle}>Utilisé pour les recommandations proactives</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.sub} />
+        </TouchableOpacity>
+      </View>
+
       <Text style={{ 
         fontSize: 18, 
         fontWeight: '600', 
@@ -407,3 +609,32 @@ export default function SettingsScreen() {
     </ScrollView>
   );
 }
+
+const styles = {
+  permissionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing(3),
+  },
+  permissionIcon: {
+    marginRight: theme.spacing(2),
+  },
+  permissionTextContainer: {
+    flex: 1,
+  },
+  permissionTitle: {
+    fontWeight: '600',
+    color: theme.colors.ink,
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  permissionSubtitle: {
+    color: theme.colors.sub,
+    fontSize: 14,
+  },
+  separator: {
+    height: 1,
+    backgroundColor: theme.colors.chipBg,
+    marginHorizontal: theme.spacing(3),
+  },
+};
